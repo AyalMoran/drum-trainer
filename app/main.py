@@ -30,6 +30,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for monitoring"""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "version": "0.1.0"
+    }
+
 # Seed some default drills
 def seed_default_drills():
     """Seed the database with some default drills"""

@@ -8,13 +8,14 @@ import subprocess
 import sys
 import time
 import os
+import requests
 from pathlib import Path
 
 def check_dependencies():
     """Check if required dependencies are installed"""
     try:
         import fastapi
-        import uvicorn
+        import uvicorn  
         print("✓ Python dependencies found")
     except ImportError:
         print("✗ Python dependencies not found. Please run: pip install -r requirements.txt")
@@ -115,6 +116,26 @@ def start_frontend():
         print(f"✗ Failed to start frontend: {e}")
         return None
 
+def wait_for_backend(max_attempts=30, delay=1):
+    """Wait for backend to be ready by polling the health endpoint"""
+    print("Waiting for backend to be ready...")
+    
+    for attempt in range(max_attempts):
+        try:
+            response = requests.get("http://localhost:8000/health", timeout=2)
+            if response.status_code == 200:
+                print("✓ Backend is ready!")
+                return True
+        except (requests.RequestException, requests.Timeout):
+            pass
+        
+        if attempt < max_attempts - 1:
+            print(f"  Attempt {attempt + 1}/{max_attempts} - Backend not ready yet...")
+            time.sleep(delay)
+    
+    print("✗ Backend failed to start within expected time")
+    return False
+
 def main():
     """Main startup function"""
     print("🚀 Starting Drum Trainer Development Environment")
@@ -136,8 +157,11 @@ def main():
     if not backend_process:
         sys.exit(1)
     
-    # Wait a moment for backend to start
-    time.sleep(2)
+    # Wait for backend to be ready
+    if not wait_for_backend():
+        print("Stopping backend...")
+        backend_process.terminate()
+        sys.exit(1)
     
     # Start frontend
     frontend_process = start_frontend()
