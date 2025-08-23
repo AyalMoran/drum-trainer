@@ -14,6 +14,7 @@ function App() {
     currentRolling,
     midiAccess,
     midiInputs,
+    isCountdownActive: storeCountdownActive,
     setDrills,
     selectDrill,
     createSession,
@@ -21,6 +22,7 @@ function App() {
     clearSession,
     setMidiAccess,
     setMidiInputs,
+    setCountdownActive,
   } = useDrumTrainerStore();
 
   const [isLoading, setIsLoading] = useState(false);
@@ -30,6 +32,10 @@ function App() {
   const [isMetronomePlaying, setIsMetronomePlaying] = useState(false);
   const [currentBeat, setCurrentBeat] = useState(0);
   const [currentSubdivision, setCurrentSubdivision] = useState(0);
+  
+  // Countdown state
+  const [isCountdownActive, setIsCountdownActive] = useState(false);
+  const [countdownValue, setCountdownValue] = useState(4);
   
   // Tempo customization state
   const [customTempoBpm, setCustomTempoBpm] = useState<number | null>(null);
@@ -205,6 +211,30 @@ function App() {
     }
   };
 
+  // Countdown sound generation
+  const playCountdownSound = () => {
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      // Unique countdown sound - higher pitch with longer duration
+      oscillator.frequency.setValueAtTime(1000, audioContext.currentTime); // Higher pitch than metronome
+      gainNode.gain.setValueAtTime(0.4, audioContext.currentTime);
+      
+      // Envelope for countdown sound - longer than metronome
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.2);
+    } catch (error) {
+      console.log('Audio context not available:', error);
+    }
+  };
+
   const handleStartSession = async (inputType: 'midi' | 'audio') => {
     if (!selectedDrill) return;
     
@@ -234,19 +264,56 @@ function App() {
   const handleStartMetronome = () => {
     if (!currentSession || !isConnected) return;
     
-    const ws = useDrumTrainerStore.getState().ws;
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      const metronomeMessage = {
-        t: performance.now(),
-        type: 'metronome_control' as const,
-        metronome_action: 'start' as const
-      };
-      ws.send(JSON.stringify(metronomeMessage));
-    }
+    // Start countdown instead of immediately starting metronome
+    setIsCountdownActive(true);
+    setCountdownActive(true); // Update store
+    setCountdownValue(4);
+    
+    // Calculate countdown interval based on BPM
+    const currentTempo = customTempoBpm || selectedDrill?.tempo_bpm || 120;
+    const beatInterval = (60 / currentTempo) * 1000; // Convert BPM to milliseconds
+    
+    // Play first countdown sound immediately
+    playCountdownSound();
+    
+    // Countdown timer
+    const countdownTimer = setInterval(() => {
+      setCountdownValue(prev => {
+        if (prev <= 1) {
+          // Countdown finished, start metronome
+          clearInterval(countdownTimer);
+          setIsCountdownActive(false);
+          setCountdownActive(false); // Update store
+          
+          // Start the actual metronome
+          const ws = useDrumTrainerStore.getState().ws;
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            const metronomeMessage = {
+              t: performance.now(),
+              type: 'metronome_control' as const,
+              metronome_action: 'start' as const
+            };
+            ws.send(JSON.stringify(metronomeMessage));
+          }
+          return 4; // Reset for next time
+        }
+        
+        // Play countdown sound for each number
+        playCountdownSound();
+        return prev - 1;
+      });
+    }, beatInterval);
   };
 
   const handleStopMetronome = () => {
     if (!currentSession || !isConnected) return;
+    
+    // Clear countdown if active
+    if (storeCountdownActive) {
+      setIsCountdownActive(false);
+      setCountdownActive(false);
+      setCountdownValue(4);
+    }
     
     const ws = useDrumTrainerStore.getState().ws;
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -261,6 +328,13 @@ function App() {
 
   const handleResetMetronome = () => {
     if (!currentSession || !isConnected) return;
+    
+    // Clear countdown if active
+    if (storeCountdownActive) {
+      setIsCountdownActive(false);
+      setCountdownActive(false);
+      setCountdownValue(4);
+    }
     
     const ws = useDrumTrainerStore.getState().ws;
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -556,7 +630,7 @@ function App() {
                 <div className="status-item">
                   <span className="status-label">Status:</span>
                   <span className={`status-value ${isMetronomePlaying ? 'playing' : 'stopped'}`}>
-                    {isMetronomePlaying ? 'Playing' : 'Stopped'}
+                    {storeCountdownActive ? countdownValue : (isMetronomePlaying ? 'Playing' : 'Stopped')}
                   </span>
                 </div>
                 <div className="status-item">

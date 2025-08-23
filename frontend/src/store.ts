@@ -26,6 +26,9 @@ interface DrumTrainerState {
   midiAccess: any | null;
   midiInputs: any[];
   
+  // Countdown state
+  isCountdownActive: boolean;
+  
   // Actions
   setDrills: (drills: Drill[]) => void;
   selectDrill: (drill: Drill) => void;
@@ -35,6 +38,7 @@ interface DrumTrainerState {
   addHitFeedback: (feedback: HitFeedback) => void;
   setMidiAccess: (access: any) => void;
   setMidiInputs: (inputs: any[]) => void;
+  setCountdownActive: (active: boolean) => void;
   clearSession: () => void;
 }
 
@@ -50,6 +54,7 @@ export const useDrumTrainerStore = create<DrumTrainerState>((set, get) => ({
   currentRolling: null,
   midiAccess: null,
   midiInputs: [],
+  isCountdownActive: false,
   
   // Actions
   setDrills: (drills) => set({ drills }),
@@ -134,15 +139,20 @@ export const useDrumTrainerStore = create<DrumTrainerState>((set, get) => ({
   },
   
   addHitFeedback: (feedback) => {
-    set((state) => ({
-      hitHistory: [...state.hitHistory, feedback],
-      currentRolling: feedback.rolling,
-    }));
+    const { isCountdownActive } = get();
+    if (!isCountdownActive) {
+      set((state) => ({
+        hitHistory: [...state.hitHistory, feedback],
+        currentRolling: feedback.rolling,
+      }));
+    }
   },
   
   setMidiAccess: (access) => set({ midiAccess: access }),
   
   setMidiInputs: (inputs) => set({ midiInputs: inputs }),
+  
+  setCountdownActive: (active) => set({ isCountdownActive: active }),
   
   clearSession: () => {
     const { disconnectWebSocket } = get();
@@ -152,6 +162,7 @@ export const useDrumTrainerStore = create<DrumTrainerState>((set, get) => ({
       sessionId: null,
       hitHistory: [],
       currentRolling: null,
+      isCountdownActive: false,
     });
   },
 }));
