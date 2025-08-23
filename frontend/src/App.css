@@ -478,31 +478,303 @@ body {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
-.hit-list {
-  max-height: 300px;
-  overflow-y: auto;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+/* Recent Hits Table Styles */
+.hit-history {
+  background: rgba(255, 255, 255, 0.05);
   border-radius: 12px;
-  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.hit-history h3 {
+  color: #ffffff;
+  font-size: 1.4rem;
+  margin-bottom: 1.5rem;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+/* Table Headers */
+.hit-table-headers {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr 1.2fr 1.2fr 1fr 0.8fr 1fr;
+  gap: 1rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.hit-header {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: center;
+}
+
+/* Hit List */
+.hit-list {
+  max-height: 400px;
+  overflow-y: auto;
+  border-radius: 8px;
 }
 
 .hit-item {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+  grid-template-columns: 1.2fr 1fr 1fr 1.2fr 1.2fr 1fr 0.8fr 1fr;
   gap: 1rem;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  font-size: 0.9rem;
-  align-items: center;
-  color: #cccccc;
-}
-
-.hit-item:last-child {
-  border-bottom: none;
-}
-
-.hit-item:nth-child(even) {
+  padding: 1rem;
+  margin-bottom: 0.5rem;
   background: rgba(255, 255, 255, 0.02);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.2s ease;
+  align-items: center;
+}
+
+.hit-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+/* Quality-based styling */
+.hit-item.perfect {
+  border-left: 4px solid #4ade80;
+  background: rgba(74, 222, 128, 0.05);
+}
+
+.hit-item.good {
+  border-left: 4px solid #60a5fa;
+  background: rgba(96, 165, 250, 0.05);
+}
+
+.hit-item.ok {
+  border-left: 4px solid #fbbf24;
+  background: rgba(251, 191, 36, 0.05);
+}
+
+.hit-item.poor {
+  border-left: 4px solid #f87171;
+  background: rgba(248, 113, 113, 0.05);
+}
+
+/* Hit Cells */
+.hit-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.25rem;
+}
+
+/* Position Cell */
+.position .slot-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.slot-number {
+  font-weight: 600;
+  color: #ffffff;
+  font-size: 0.9rem;
+}
+
+.beat-info {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Timing Cell */
+.timing .timing-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.delta-ms {
+  font-weight: 600;
+  color: #ffffff;
+  font-size: 0.9rem;
+}
+
+.timing-quality {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Velocity Cell */
+.velocity .velocity-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.actual-velocity {
+  font-weight: 600;
+  color: #ffffff;
+  font-size: 0.9rem;
+}
+
+.target-velocity {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Score Bars */
+.score-bar {
+  position: relative;
+  width: 100%;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.score-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4ade80, #60a5fa);
+  border-radius: 10px;
+  transition: width 0.3s ease;
+}
+
+.score-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* Target Velocity */
+.target-value {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.9rem;
+}
+
+/* Beat Info */
+.beat-detail {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.beat-number {
+  font-weight: 600;
+  color: #ffffff;
+  font-size: 0.9rem;
+}
+
+.subdivision-number {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Quality Badge */
+.quality-badge {
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.quality-badge.perfect {
+  background: rgba(74, 222, 128, 0.2);
+  color: #4ade80;
+  border: 1px solid rgba(74, 222, 128, 0.3);
+}
+
+.quality-badge.good {
+  background: rgba(96, 165, 250, 0.2);
+  color: #60a5fa;
+  border: 1px solid rgba(96, 165, 250, 0.3);
+}
+
+.quality-badge.ok {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.quality-badge.poor {
+  background: rgba(248, 113, 113, 0.2);
+  color: #f87171;
+  border: 1px solid rgba(248, 113, 113, 0.3);
+}
+
+/* Summary Stats */
+.hit-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.summary-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+}
+
+.summary-label {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 500;
+}
+
+.summary-value {
+  font-size: 1rem;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .hit-table-headers,
+  .hit-item {
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 0.5rem;
+  }
+  
+  .hit-header:nth-child(n+5),
+  .hit-cell:nth-child(n+5) {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .hit-table-headers,
+  .hit-item {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+  
+  .hit-header:nth-child(n+3),
+  .hit-cell:nth-child(n+3) {
+    display: none;
+  }
+  
+  .hit-summary {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Responsive design */
