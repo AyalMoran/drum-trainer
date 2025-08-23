@@ -9,16 +9,27 @@ import sys
 import time
 import os
 import requests
+import webbrowser
 from pathlib import Path
 
-def check_dependencies():
+def check_dependencies(): 
     """Check if required dependencies are installed"""
+    # Check if we're in a virtual environment or if dependencies are available
     try:
         import fastapi
         import uvicorn  
         print("✓ Python dependencies found")
+        return True
     except ImportError:
-        print("✗ Python dependencies not found. Please run: pip install -r requirements.txt")
+        # Try to activate virtual environment if it exists
+        venv_path = Path("venv")
+        if venv_path.exists():
+            print("⚠️  Dependencies not found in current environment")
+            print("   Found virtual environment at 'venv/'")
+            print("   Please activate it first: source venv/bin/activate")
+            print("   Or run: venv/bin/pip install -r requirements.txt")
+        else:
+            print("✗ Python dependencies not found. Please run: pip install -r requirements.txt")
         return False
     
     # Check if Node.js is available
@@ -79,13 +90,56 @@ def install_frontend_deps():
     
     return True
 
+def install_backend_deps():
+    """Install backend dependencies if needed"""
+    venv_path = Path("venv")
+    if not venv_path.exists():
+        print("✗ Virtual environment not found")
+        return False
+    
+    # Check if key dependencies are already installed
+    try:
+        import fastapi
+        import uvicorn
+        print("✓ Backend dependencies already installed")
+        return True
+    except ImportError:
+        print("Installing backend dependencies...")
+        try:
+            if os.name == 'nt':  # Windows
+                subprocess.run("venv\\Scripts\\pip install -r requirements.txt", shell=True, check=True)
+            else:
+                subprocess.run(["venv/bin/pip", "install", "-r", "requirements.txt"], check=True)
+            print("✓ Backend dependencies installed")
+            return True
+        except subprocess.CalledProcessError:
+            print("✗ Failed to install backend dependencies")
+            return False
+
 def start_backend():
     """Start the backend server"""
     print("Starting backend server...")
     try:
+        # Check if we have a virtual environment and use it
+        venv_path = Path("venv")
+        python_executable = sys.executable
+        
+        if venv_path.exists():
+            # Use the virtual environment's Python
+            if os.name == 'nt':  # Windows
+                venv_python = venv_path / "Scripts" / "python.exe"
+            else:  # Unix/Linux
+                venv_python = venv_path / "bin" / "python"
+            
+            if venv_python.exists():
+                python_executable = str(venv_python)
+                print(f"   Using virtual environment: {venv_python}")
+            else:
+                print(f"   Virtual environment found but Python not at expected path: {venv_python}")
+        
         # Start the server from the root directory
         backend_process = subprocess.Popen([
-            sys.executable, "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"
+            python_executable, "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"
         ])
         
         print("✓ Backend server started (PID: {})".format(backend_process.pid))
@@ -136,6 +190,36 @@ def wait_for_backend(max_attempts=30, delay=1):
     print("✗ Backend failed to start within expected time")
     return False
 
+def wait_for_frontend(max_attempts=30, delay=1):
+    """Wait for frontend to be ready by polling the dev server"""
+    print("Waiting for frontend to be ready...")
+    
+    for attempt in range(max_attempts):
+        try:
+            response = requests.get("http://localhost:3000", timeout=2)
+            if response.status_code == 200:
+                print("✓ Frontend is ready!")
+                return True
+        except (requests.RequestException, requests.Timeout):
+            pass
+        
+        if attempt < max_attempts - 1:
+            print(f"  Attempt {attempt + 1}/{max_attempts} - Frontend not ready yet...")
+            time.sleep(delay)
+    
+    print("⚠️  Frontend may not be ready yet, but continuing...")
+    return False
+
+def open_browser():
+    """Open the Drum Trainer application in the default browser"""
+    try:
+        print("🌐 Opening Drum Trainer in your default browser...")
+        webbrowser.open("http://localhost:3000")
+        print("✓ Browser opened successfully!")
+    except Exception as e:
+        print(f"⚠️  Could not open browser automatically: {e}")
+        print("   Please manually open: http://localhost:3000")
+
 def main():
     """Main startup function"""
     print("🚀 Starting Drum Trainer Development Environment")
@@ -143,7 +227,12 @@ def main():
     
     # Check dependencies
     if not check_dependencies():
-        sys.exit(1)
+        # Try to install backend dependencies automatically
+        if not install_backend_deps():
+            print("Please install dependencies manually:")
+            print("  source venv/bin/activate  # or venv\\Scripts\\activate on Windows")
+            print("  pip install -r requirements.txt")
+            sys.exit(1)
     
     # Install frontend dependencies if needed
     if not install_frontend_deps():
@@ -169,6 +258,16 @@ def main():
         print("Stopping backend...")
         backend_process.terminate()
         sys.exit(1)
+    
+    # Wait for frontend to be ready
+    if wait_for_frontend():
+        # Small delay to ensure frontend is fully loaded
+        print("⏳ Waiting a moment for frontend to fully load...")
+        time.sleep(3)
+        # Open browser automatically
+        open_browser()
+    else:
+        print("💡 You can manually open: http://localhost:3000")
     
     print("\n" + "=" * 50)
     print("🎯 Drum Trainer is starting up!")

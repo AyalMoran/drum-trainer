@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useDrumTrainerStore } from './store';
 import { Drill } from './types';
+import GradientText from './components/GradientText';
 import './App.css';
 
 function App() {
@@ -27,10 +28,12 @@ function App() {
   useEffect(() => {
     const fetchDrills = async () => {
       try {
-        const response = await fetch('/api/v1/drills');
+        const response = await fetch('/v1/drills');
         if (response.ok) {
           const data = await response.json();
-          setDrills(data.drills);
+          setDrills(data.drills || []);
+        } else {
+          setError(`Failed to load drills: ${response.status} ${response.statusText}`);
         }
       } catch (error) {
         console.error('Error fetching drills:', error);
@@ -107,11 +110,62 @@ function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <h1>Drum Trainer</h1>
+        <h1>
+          <GradientText 
+            colors={["#ff6b6b", "#4ecdc4", "#45b7d1", "#96ceb4", "#feca57"]}
+            animationSpeed={4}
+            className="text-6xl font-bold"
+          >
+            Drum Trainer
+          </GradientText>
+        </h1>
         <p>Real-time timing and dynamics analysis</p>
       </header>
 
-      <main className="App-main">
+      <div className="app-container">
+        {/* Sidebar */}
+        <aside className="sidebar">
+          <h2>Select a Drill</h2>
+          <div className="drill-grid">
+            {drills.map((drill) => (
+              <div
+                key={drill.id}
+                className={`drill-card ${selectedDrill?.id === drill.id ? 'selected' : ''}`}
+                onClick={() => selectDrill(drill)}
+              >
+                <h3>{drill.name}</h3>
+                <p>{drill.tempo_bpm} BPM</p>
+                <p>{drill.subdivision} subdivisions</p>
+                <p>{drill.bars} bars</p>
+              </div>
+            ))}
+          </div>
+
+          {selectedDrill && (
+            <div className="session-controls">
+              <h3>Start Practice Session</h3>
+              <div className="button-group">
+                <button
+                  onClick={() => handleStartSession('midi')}
+                  disabled={isLoading}
+                  className="btn btn-primary"
+                >
+                  {isLoading ? 'Starting...' : 'Start MIDI Session'}
+                </button>
+                <button
+                  onClick={() => handleStartSession('audio')}
+                  disabled={isLoading}
+                  className="btn btn-secondary"
+                >
+                  {isLoading ? 'Starting...' : 'Start Audio Session'}
+                </button>
+              </div>
+            </div>
+          )}
+        </aside>
+
+        {/* Main Content */}
+        <main className="main-content">
         {error && (
           <div className="error-message">
             {error}
@@ -120,44 +174,23 @@ function App() {
         )}
 
         {!currentSession ? (
-          <div className="setup-section">
-            <h2>Select a Drill</h2>
-            <div className="drill-grid">
-              {drills.map((drill) => (
-                <div
-                  key={drill.id}
-                  className={`drill-card ${selectedDrill?.id === drill.id ? 'selected' : ''}`}
-                  onClick={() => selectDrill(drill)}
-                >
-                  <h3>{drill.name}</h3>
-                  <p>{drill.tempo_bpm} BPM</p>
-                  <p>{drill.subdivision} subdivisions</p>
-                  <p>{drill.bars} bars</p>
-                </div>
-              ))}
-            </div>
-
-            {selectedDrill && (
-              <div className="session-controls">
-                <h3>Start Practice Session</h3>
-                <div className="button-group">
-                  <button
-                    onClick={() => handleStartSession('midi')}
-                    disabled={isLoading}
-                    className="btn btn-primary"
-                  >
-                    {isLoading ? 'Starting...' : 'Start MIDI Session'}
-                  </button>
-                  <button
-                    onClick={() => handleStartSession('audio')}
-                    disabled={isLoading}
-                    className="btn btn-secondary"
-                  >
-                    {isLoading ? 'Starting...' : 'Start Audio Session'}
-                  </button>
-                </div>
+          <div className="welcome-section">
+            <h2>Welcome to Drum Trainer</h2>
+            <p>Select a drill from the sidebar to begin your practice session.</p>
+            <div className="welcome-features">
+              <div className="feature-card">
+                <h3>🎯 Real-time Analysis</h3>
+                <p>Get instant feedback on timing and dynamics</p>
               </div>
-            )}
+              <div className="feature-card">
+                <h3>🎵 Multiple Inputs</h3>
+                <p>Support for MIDI and audio input</p>
+              </div>
+              <div className="feature-card">
+                <h3>📊 Performance Tracking</h3>
+                <p>Monitor your progress with detailed metrics</p>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="practice-section">
@@ -208,7 +241,8 @@ function App() {
             )}
           </div>
         )}
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
