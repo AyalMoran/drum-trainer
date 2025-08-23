@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useDrumTrainerStore } from './store';
 import { Drill } from './types';
 import GradientText from './components/GradientText';
@@ -12,6 +12,8 @@ function App() {
     isConnected,
     hitHistory,
     currentRolling,
+    midiAccess,
+    midiInputs,
     setDrills,
     selectDrill,
     createSession,
@@ -23,9 +25,17 @@ function App() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Refs to prevent duplicate effect runs
+  const drillsFetchedRef = useRef(false);
+  const midiSetupRef = useRef(false);
 
-  // Load drills on component mount
+  // Load drills on component mount - only run once
   useEffect(() => {
+    // Prevent duplicate requests using ref
+    if (drillsFetchedRef.current) return;
+    drillsFetchedRef.current = true;
+    
     const fetchDrills = async () => {
       try {
         const response = await fetch('/v1/drills');
@@ -42,10 +52,14 @@ function App() {
     };
 
     fetchDrills();
-  }, [setDrills]);
+  }, []); // Empty dependency array - only run once
 
-  // Setup MIDI access
+  // Setup MIDI access - only run once
   useEffect(() => {
+    // Prevent duplicate setup using ref
+    if (midiSetupRef.current) return;
+    midiSetupRef.current = true;
+    
     const setupMIDI = async () => {
       try {
         if ('requestMIDIAccess' in navigator) {
@@ -59,7 +73,7 @@ function App() {
           inputs.forEach(input => {
             input.onmidimessage = (event) => {
               // Only handle note-on messages with velocity > 0
-              if (event.data[0] === 0x90 && event.data[2] > 0) {
+              if (event.data && event.data[0] === 0x90 && event.data[2] > 0) {
                 const hitEvent = {
                   t: performance.now(),
                   type: 'midi' as const,
@@ -85,7 +99,7 @@ function App() {
     };
 
     setupMIDI();
-  }, [setMidiAccess, setMidiInputs, isConnected, currentSession]);
+  }, []); // Empty dependency array - only run once
 
   const handleStartSession = async (inputType: 'midi' | 'audio') => {
     if (!selectedDrill) return;
