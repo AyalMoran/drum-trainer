@@ -1,19 +1,142 @@
 import asyncio
 import json
 import uuid
+import time
 from datetime import datetime, timezone
 from typing import Dict, Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 
-from .models import Drill, SessionCreate, Session, HitEvent, HitFeedback, DrillList
+from .models import Drill, SessionCreate, Session, HitEvent, HitFeedback, DrillList, MetronomeState, MetronomeTick, DrillTempoUpdate
 from .analyzer import DrumAnalyzer
 
 # In-memory storage for MVP (replace with database later)
 drills_db: Dict[str, Drill] = {}
 sessions_db: Dict[str, Session] = {}
 analyzers_db: Dict[str, DrumAnalyzer] = {}
+metronomes_db: Dict[str, 'Metronome'] = {}
+
+class Metronome:
+    """Metronome class for generating click sounds and timing"""
+    
+    def __init__(self, drill: Drill, custom_tempo_bpm: Optional[int] = None):
+        self.drill = drill
+        self.custom_tempo_bpm = custom_tempo_bpm
+        self.is_playing = False
+        self.current_beat = 0
+        self.current_subdivision = 0
+        self.start_time = None
+        self.task = None
+        
+    @property
+    def effective_tempo(self) -> int:
+        """Get the effective tempo (custom or default)"""
+        return self.custom_tempo_bpm if self.custom_tempo_bpm is not None else self.drill.tempo_bpm
+        
+    async def start(self, websocket: WebSocket):
+        """Start the metronome"""
+        if self.is_playing:
+            return
+            
+        self.is_playing = True
+        self.current_beat = 0
+        self.current_subdivision = 0
+        self.start_time = time.time()
+        
+        # Start the metronome task
+        self.task = asyncio.create_task(self._run_metronome(websocket))
+        
+    async def stop(self):
+        """Stop the metronome"""
+        self.is_playing = False
+        if self.task:
+            self.task.cancel()
+            self.task = None
+            
+    async def reset(self):
+        """Reset the metronome to initial state"""
+        await self.stop()
+        self.current_beat = 0
+        self.current_subdivision = 0
+        
+    async def update_tempo(self, new_tempo_bpm: int):
+        """Update the metronome tempo dynamically"""
+        print(f"Updating metronome tempo from {self.effective_tempo} to {new_tempo_bpm} BPM")
+        
+        if self.is_playing:
+            # If metronome is playing, restart it with new tempo
+            await self.stop()
+            self.custom_tempo_bpm = new_tempo_bpm
+            print(f"Metronome stopped and tempo updated to {new_tempo_bpm} BPM")
+            # Note: User needs to start again with new tempo
+        else:
+            # If not playing, just update the tempo
+            self.custom_tempo_bpm = new_tempo_bpm
+            print(f"Metronome tempo updated to {new_tempo_bpm} BPM")
+        
+        # Update the analyzer grid with new tempo
+        await self._update_analyzer_grid()
+    
+    async def _update_analyzer_grid(self):
+        """Update the analyzer grid when tempo changes"""
+        # Find the analyzer for this session
+        session_id = None
+        for sid, metronome in metronomes_db.items():
+            if metronome == self:
+                session_id = sid
+                break
+        
+        if session_id and session_id in analyzers_db:
+            analyzer = analyzers_db[session_id]
+            # Recompute grid with new tempo
+            analyzer.grid_times = analyzer._compute_grid_times()
+            print(f"Analyzer grid updated for new tempo: {self.effective_tempo} BPM")
+        
+    async def _run_metronome(self, websocket: WebSocket):
+        """Main metronome loop"""
+        tempo = self.effective_tempo
+        subdivision = self.drill.subdivision
+        beats_per_bar = self.drill.beats_per_bar
+        
+        # Calculate intervals
+        beat_interval = 60.0 / tempo  # seconds per beat
+        subdivision_interval = beat_interval / subdivision  # seconds per subdivision
+        
+        try:
+            while self.is_playing:
+                # Calculate current position
+                elapsed = time.time() - self.start_time
+                total_subdivisions = int(elapsed / subdivision_interval)
+                
+                # Update beat and subdivision counters
+                self.current_subdivision = total_subdivisions % subdivision
+                self.current_beat = (total_subdivisions // subdivision) % beats_per_bar
+                
+                # Send tick information
+                tick = MetronomeTick(
+                    beat=self.current_beat,
+                    subdivision=self.current_subdivision,
+                    is_downbeat=(self.current_beat == 0),
+                    is_beat=(self.current_subdivision == 0)
+                )
+                
+                try:
+                    await websocket.send_json(tick.model_dump())
+                except:
+                    # WebSocket might be closed
+                    break
+                
+                # Wait for next subdivision
+                await asyncio.sleep(subdivision_interval)
+                
+        except asyncio.CancelledError:
+            # Task was cancelled (normal when stopping)
+            pass
+        except Exception as e:
+            print(f"Metronome error: {e}")
+        finally:
+            self.is_playing = False
 
 app = FastAPI(
     title="Drum Trainer API",
@@ -134,18 +257,18 @@ async def get_drill(drill_id: str):
 @app.post("/v1/session", response_model=Session)
 async def create_session(session_data: SessionCreate):
     """Create a new practice session"""
-    # Validate drill exists
     if session_data.drill_id not in drills_db:
         raise HTTPException(status_code=404, detail="Drill not found")
     
-    # Create session
+    # Create session with custom tempo if provided
     session_id = str(uuid.uuid4())
     session = Session(
         id=session_id,
         drill_id=session_data.drill_id,
         started_at=datetime.now(timezone.utc),
         client_latency_ms=session_data.client_latency_ms,
-        input_type=session_data.input_type
+        input_type=session_data.input_type,
+        custom_tempo_bpm=session_data.custom_tempo_bpm
     )
     
     # Store session
@@ -182,10 +305,14 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     
     session = sessions_db[session_id]
     analyzer = analyzers_db[session_id]
+    drill = drills_db[session.drill_id]
+    
+    # Create metronome for this session
+    metronome = Metronome(drill, session.custom_tempo_bpm)
+    metronomes_db[session_id] = metronome
     
     try:
         # Send session start info
-        drill = drills_db[session.drill_id]
         await websocket.send_json({
             "type": "session_start",
             "session_id": session_id,
@@ -193,12 +320,25 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 "id": drill.id,
                 "name": drill.name,
                 "tempo_bpm": drill.tempo_bpm,
+                "custom_tempo_bpm": session.custom_tempo_bpm,
+                "effective_tempo_bpm": metronome.effective_tempo,
                 "subdivision": drill.subdivision,
                 "beats_per_bar": drill.beats_per_bar,
                 "bars": drill.bars
             },
             "server_start_time": datetime.now(timezone.utc).isoformat()
         })
+        
+        # Send initial metronome state
+        metronome_state = MetronomeState(
+            is_playing=False,
+            current_beat=0,
+            current_subdivision=0,
+            tempo_bpm=metronome.effective_tempo,
+            subdivision=drill.subdivision,
+            beats_per_bar=drill.beats_per_bar
+        )
+        await websocket.send_json(metronome_state.model_dump())
         
         # Main message loop
         while True:
@@ -234,6 +374,28 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     if feedback:
                         await websocket.send_json(feedback.model_dump())
                 
+                elif hit_event.type == "metronome_control":
+                    # Handle metronome control
+                    if hit_event.metronome_action == "start":
+                        await metronome.start(websocket)
+                    elif hit_event.metronome_action == "stop":
+                        await metronome.stop()
+                    elif hit_event.metronome_action == "reset":
+                        await metronome.reset()
+                    elif hit_event.metronome_action == "update_tempo" and hit_event.custom_tempo_bpm is not None:
+                        await metronome.update_tempo(hit_event.custom_tempo_bpm)
+                    
+                    # Send updated metronome state
+                    metronome_state = MetronomeState(
+                        is_playing=metronome.is_playing,
+                        current_beat=metronome.current_beat,
+                        current_subdivision=metronome.current_subdivision,
+                        tempo_bpm=metronome.effective_tempo,  # Use effective tempo instead of drill tempo
+                        subdivision=drill.subdivision,
+                        beats_per_bar=drill.beats_per_bar
+                    )
+                    await websocket.send_json(metronome_state.model_dump())
+                
                 elif hit_event.type == "calibration":
                     # Handle latency calibration
                     if "client_offset_ms" in message:
@@ -258,6 +420,11 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             await websocket.close(code=1011, reason="Internal error")
         except:
             pass
+    finally:
+        # Clean up metronome
+        if session_id in metronomes_db:
+            await metronomes_db[session_id].stop()
+            del metronomes_db[session_id]
 
 @app.post("/v1/take/{session_id}/finalize")
 async def finalize_take(session_id: str):
@@ -282,6 +449,43 @@ async def finalize_take(session_id: str):
         "session_id": session_id,
         "metrics": metrics.model_dump(),
         "finished_at": datetime.now(timezone.utc).isoformat()
+    }
+
+@app.delete("/v1/session/{session_id}")
+async def clear_session(session_id: str):
+    """Clear a session and clean up resources"""
+    if session_id in sessions_db:
+        del sessions_db[session_id]
+    
+    if session_id in analyzers_db:
+        del analyzers_db[session_id]
+    
+    if session_id in metronomes_db:
+        await metronomes_db[session_id].stop()
+        del metronomes_db[session_id]
+    
+    return {"message": "Session cleared"}
+
+@app.post("/v1/drills/{drill_id}/tempo")
+async def update_drill_tempo(drill_id: str, tempo_update: DrillTempoUpdate):
+    """Update the default tempo of a drill"""
+    if drill_id not in drills_db:
+        raise HTTPException(status_code=404, detail="Drill not found")
+    
+    drill = drills_db[drill_id]
+    
+    # Create updated drill with new tempo
+    updated_drill = Drill(
+        **drill.model_dump(),
+        tempo_bpm=tempo_update.new_tempo_bpm
+    )
+    
+    # Update the drill in the database
+    drills_db[drill_id] = updated_drill
+    
+    return {
+        "message": f"Drill tempo updated to {tempo_update.new_tempo_bpm} BPM",
+        "drill": updated_drill
     }
 
 if __name__ == "__main__":

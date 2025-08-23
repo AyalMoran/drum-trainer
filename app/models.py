@@ -36,6 +36,7 @@ class SessionCreate(BaseModel):
     drill_id: str
     input_type: Literal["midi", "audio"]
     client_latency_ms: Optional[float] = None
+    custom_tempo_bpm: Optional[int] = Field(None, ge=40, le=300)  # Allow custom tempo
 
 class Session(BaseModel):
     id: str
@@ -45,14 +46,17 @@ class Session(BaseModel):
     client_latency_ms: Optional[float] = None
     input_type: Literal["midi", "audio"]
     status: Literal["active", "completed"] = "active"
+    custom_tempo_bpm: Optional[int] = None  # Store the custom tempo used
 
 class HitEvent(BaseModel):
     t: float  # client monotonic time in ms
-    type: Literal["midi", "audio"]
+    type: Literal["midi", "audio", "metronome_control"]
     note: Optional[int] = None  # for MIDI
     velocity: Optional[int] = None  # for MIDI
     seq: Optional[int] = None  # for audio
     pcm: Optional[str] = None  # base64 encoded PCM for audio
+    metronome_action: Optional[Literal["start", "stop", "reset", "update_tempo"]] = None  # for metronome control
+    custom_tempo_bpm: Optional[int] = Field(None, ge=40, le=300)  # for tempo updates
 
 class HitFeedback(BaseModel):
     type: Literal["hit_feedback"] = "hit_feedback"
@@ -86,3 +90,27 @@ class DrillList(BaseModel):
 class SessionList(BaseModel):
     sessions: List[Session]
     total: int
+
+class MetronomeControl(BaseModel):
+    action: Literal["start", "stop", "reset"]
+    session_id: str
+
+class MetronomeState(BaseModel):
+    type: Literal["metronome_state"] = "metronome_state"
+    is_playing: bool
+    current_beat: int
+    current_subdivision: int
+    tempo_bpm: int
+    subdivision: int
+    beats_per_bar: int
+
+class MetronomeTick(BaseModel):
+    type: Literal["metronome_tick"] = "metronome_tick"
+    beat: int
+    subdivision: int
+    is_downbeat: bool
+    is_beat: bool
+
+class DrillTempoUpdate(BaseModel):
+    drill_id: str
+    new_tempo_bpm: int = Field(..., ge=40, le=300)

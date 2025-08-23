@@ -23,28 +23,19 @@ interface DrumTrainerState {
   } | null;
   
   // MIDI
-  midiAccess: WebMidi.MIDIAccess | null;
-  midiInputs: WebMidi.MIDIInput[];
-  
-  // Metronome
-  isMetronomePlaying: boolean;
-  currentBeat: number;
-  currentSubdivision: number;
-  metronomeInterval: number | null;
+  midiAccess: any | null;
+  midiInputs: any[];
   
   // Actions
   setDrills: (drills: Drill[]) => void;
   selectDrill: (drill: Drill) => void;
-  createSession: (drillId: string, inputType: 'midi' | 'audio') => Promise<Session>;
+  createSession: (drillId: string, inputType: 'midi' | 'audio', customTempoBpm?: number) => Promise<Session>;
   connectWebSocket: (sessionId: string) => void;
   disconnectWebSocket: () => void;
   addHitFeedback: (feedback: HitFeedback) => void;
-  setMidiAccess: (access: WebMidi.MIDIAccess) => void;
-  setMidiInputs: (inputs: WebMidi.MIDIInput[]) => void;
+  setMidiAccess: (access: any) => void;
+  setMidiInputs: (inputs: any[]) => void;
   clearSession: () => void;
-  startMetronome: () => void;
-  stopMetronome: () => void;
-  resetMetronome: () => void;
 }
 
 export const useDrumTrainerStore = create<DrumTrainerState>((set, get) => ({
@@ -60,18 +51,12 @@ export const useDrumTrainerStore = create<DrumTrainerState>((set, get) => ({
   midiAccess: null,
   midiInputs: [],
   
-  // Metronome
-  isMetronomePlaying: false,
-  currentBeat: 0,
-  currentSubdivision: 0,
-  metronomeInterval: null,
-  
   // Actions
   setDrills: (drills) => set({ drills }),
   
   selectDrill: (drill) => set({ selectedDrill: drill }),
   
-  createSession: async (drillId, inputType) => {
+  createSession: async (drillId: string, inputType: 'midi' | 'audio', customTempoBpm?: number) => {
     try {
       const response = await fetch('/api/v1/session', {
         method: 'POST',
@@ -82,6 +67,7 @@ export const useDrumTrainerStore = create<DrumTrainerState>((set, get) => ({
           drill_id: drillId,
           input_type: inputType,
           client_latency_ms: 0, // Will be calibrated later
+          custom_tempo_bpm: customTempoBpm, // Pass custom tempo if provided
         }),
       });
       
@@ -169,3 +155,34 @@ export const useDrumTrainerStore = create<DrumTrainerState>((set, get) => ({
     });
   },
 }));
+
+// Helper function to play click sounds
+function playClick(isDownbeat: boolean, isBeat: boolean) {
+  // Create audio context for click sounds
+  const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+  
+  // Create oscillator for click sound
+  const oscillator = audioContext.createOscillator();
+  const gainNode = audioContext.createGain();
+  
+  oscillator.connect(gainNode);
+  gainNode.connect(audioContext.destination);
+  
+  // Different frequencies for downbeat vs regular beat
+  if (isDownbeat) {
+    oscillator.frequency.setValueAtTime(800, audioContext.currentTime); // Higher pitch for downbeat
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+  } else if (isBeat) {
+    oscillator.frequency.setValueAtTime(600, audioContext.currentTime); // Medium pitch for beat
+    gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+  } else {
+    oscillator.frequency.setValueAtTime(400, audioContext.currentTime); // Lower pitch for subdivision
+    gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+  }
+  
+  // Envelope for click sound
+  gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+  
+  oscillator.start(audioContext.currentTime);
+  oscillator.stop(audioContext.currentTime + 0.1);
+}

@@ -28,7 +28,10 @@ class DrumAnalyzer:
         self.rolling_dyn_var = 0.0
         
     def _compute_grid_times(self) -> np.ndarray:
-        """Compute the time grid for the drill"""
+        """Compute the time grid for the drill using relative timing"""
+        # Use relative timing starting from 0ms - much simpler and more reliable
+        start_time = 0.0  # Start from 0ms
+        
         # Convert BPM to milliseconds per beat
         ms_per_beat = 60000.0 / self.drill.tempo_bpm
         
@@ -38,20 +41,36 @@ class DrumAnalyzer:
         # Total slots in the drill
         total_slots = self.drill.beats_per_bar * self.drill.bars * self.drill.subdivision
         
-        # Create grid starting from current time
-        start_time = time.perf_counter() * 1000.0 + 1000.0  # 1 second from now
+        # Create grid starting from 0ms
         grid = np.array([start_time + i * ms_per_subdivision for i in range(total_slots)], dtype=np.float64)
+        
+        print(f"Grid computed: {total_slots} slots, {ms_per_subdivision:.2f}ms per subdivision")
+        print(f"Grid spans: 0ms to {grid[-1]:.2f}ms")
         
         return grid
     
     def _find_nearest_slot(self, hit_time_ms: float) -> Tuple[int, float]:
         """Find the nearest grid slot and return (slot_index, delta_ms)"""
-        # Convert client time to server time
-        server_time = hit_time_ms + self.client_offset_ms
+        # For relative timing, we need to convert the absolute client time to relative time
+        # Since the grid starts at 0ms, we need to find the relative position
+        
+        # Convert client time to relative time (modulo the total grid duration)
+        total_grid_duration = self.grid_times[-1]  # Total duration in ms
+        relative_time = hit_time_ms % total_grid_duration
+        
+        # Debug timing information
+        print(f"Hit timing debug:")
+        print(f"  Client time: {hit_time_ms:.2f}ms")
+        print(f"  Total grid duration: {total_grid_duration:.2f}ms")
+        print(f"  Relative time: {relative_time:.2f}ms")
+        print(f"  Grid start: {self.grid_times[0]:.2f}ms")
+        print(f"  Grid end: {self.grid_times[-1]:.2f}ms")
         
         # Find nearest slot
-        slot_idx = int(np.argmin(np.abs(self.grid_times - server_time)))
-        delta_ms = float(server_time - self.grid_times[slot_idx])
+        slot_idx = int(np.argmin(np.abs(self.grid_times - relative_time)))
+        delta_ms = float(relative_time - self.grid_times[slot_idx])
+        
+        print(f"  Nearest slot: {slot_idx}, Delta: {delta_ms:.2f}ms")
         
         return slot_idx, delta_ms
     

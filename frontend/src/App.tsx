@@ -26,6 +26,15 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
+  // Metronome state
+  const [isMetronomePlaying, setIsMetronomePlaying] = useState(false);
+  const [currentBeat, setCurrentBeat] = useState(0);
+  const [currentSubdivision, setCurrentSubdivision] = useState(0);
+  
+  // Tempo customization state
+  const [customTempoBpm, setCustomTempoBpm] = useState<number | null>(null);
+  const [showTempoCustomization, setShowTempoCustomization] = useState(false);
+  
   // Refs to prevent duplicate effect runs
   const drillsFetchedRef = useRef(false);
   const midiSetupRef = useRef(false);
@@ -130,6 +139,72 @@ function App() {
     };
   }, [currentSession, isConnected]); // Re-run when session status changes
 
+  // Handle WebSocket messages for metronome updates
+  useEffect(() => {
+    if (!isConnected || !currentSession) return;
+    
+    const ws = useDrumTrainerStore.getState().ws;
+    if (!ws) return;
+    
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        const message = JSON.parse(event.data);
+        
+        if (message.type === 'metronome_state') {
+          setIsMetronomePlaying(message.is_playing);
+          setCurrentBeat(message.current_beat);
+          setCurrentSubdivision(message.current_subdivision);
+        } else if (message.type === 'metronome_tick') {
+          setCurrentBeat(message.beat);
+          setCurrentSubdivision(message.subdivision);
+          
+          // Play click sound for immediate audio feedback
+          playClickSound(message.is_downbeat, message.is_beat);
+        }
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
+      }
+    };
+    
+    ws.addEventListener('message', handleMessage);
+    
+    return () => {
+      ws.removeEventListener('message', handleMessage);
+    };
+  }, [isConnected, currentSession]);
+
+  // Simple click sound generation
+  const playClickSound = (isDownbeat: boolean, isBeat: boolean) => {
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      // Different frequencies for different beat types
+      if (isDownbeat) {
+        oscillator.frequency.setValueAtTime(800, audioContext.currentTime); // Higher pitch for downbeat
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      } else if (isBeat) {
+        oscillator.frequency.setValueAtTime(600, audioContext.currentTime); // Medium pitch for beat
+        gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+      } else {
+        oscillator.frequency.setValueAtTime(400, audioContext.currentTime); // Lower pitch for subdivision
+        gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+      }
+      
+      // Envelope for click sound
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.1);
+    } catch (error) {
+      console.log('Audio context not available:', error);
+    }
+  };
+
   const handleStartSession = async (inputType: 'midi' | 'audio') => {
     if (!selectedDrill) return;
     
@@ -137,8 +212,13 @@ function App() {
     setError(null);
     
     try {
+      // Always start with default tempo, tempo customization is in metronome section
       const session = await createSession(selectedDrill.id, inputType);
       connectWebSocket(session.id);
+      
+      // Reset custom tempo to default when starting new session
+      setCustomTempoBpm(null);
+      setShowTempoCustomization(false);
     } catch (error) {
       setError('Failed to start session');
     } finally {
@@ -148,6 +228,68 @@ function App() {
 
   const handleStopSession = () => {
     clearSession();
+  };
+
+  // Metronome control functions
+  const handleStartMetronome = () => {
+    if (!currentSession || !isConnected) return;
+    
+    const ws = useDrumTrainerStore.getState().ws;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      const metronomeMessage = {
+        t: performance.now(),
+        type: 'metronome_control' as const,
+        metronome_action: 'start' as const
+      };
+      ws.send(JSON.stringify(metronomeMessage));
+    }
+  };
+
+  const handleStopMetronome = () => {
+    if (!currentSession || !isConnected) return;
+    
+    const ws = useDrumTrainerStore.getState().ws;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      const metronomeMessage = {
+        t: performance.now(),
+        type: 'metronome_control' as const,
+        metronome_action: 'stop' as const
+      };
+      ws.send(JSON.stringify(metronomeMessage));
+    }
+  };
+
+  const handleResetMetronome = () => {
+    if (!currentSession || !isConnected) return;
+    
+    const ws = useDrumTrainerStore.getState().ws;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      const metronomeMessage = {
+        t: performance.now(),
+        type: 'metronome_control' as const,
+        metronome_action: 'reset' as const
+      };
+      ws.send(JSON.stringify(metronomeMessage));
+    }
+  };
+
+  // Update metronome tempo
+  const handleUpdateMetronomeTempo = () => {
+    if (!currentSession || !isConnected) return;
+    
+    const ws = useDrumTrainerStore.getState().ws;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      const metronomeMessage = {
+        t: performance.now(),
+        type: 'metronome_control' as const,
+        metronome_action: 'update_tempo' as const,
+        custom_tempo_bpm: customTempoBpm
+      };
+      ws.send(JSON.stringify(metronomeMessage));
+      
+      // Close the tempo customization panel
+      setShowTempoCustomization(false);
+    }
   };
 
   // Handle keyboard events to simulate MIDI drum strokes
@@ -214,6 +356,7 @@ function App() {
           {selectedDrill && (
             <div className="session-controls">
               <h3>Start Practice Session</h3>
+              
               <div className="button-group">
                 <button
                   onClick={() => handleStartSession('midi')}
@@ -295,6 +438,158 @@ function App() {
               <button onClick={handleStopSession} className="btn btn-danger">
                 Stop Session
               </button>
+            </div>
+
+            {/* Metronome Controls */}
+            <div className="metronome-section">
+              <h3>Metronome</h3>
+              
+              {/* Tempo Customization */}
+              <div className="tempo-customization">
+                <div className="tempo-header">
+                  <span className="tempo-label">
+                    Tempo: <strong>{customTempoBpm || selectedDrill?.tempo_bpm} BPM</strong>
+                    {customTempoBpm && (
+                      <span className="default-tempo-note"> (Default: {selectedDrill?.tempo_bpm} BPM)</span>
+                    )}
+                  </span>
+                  <button 
+                    onClick={() => setShowTempoCustomization(!showTempoCustomization)}
+                    className="btn btn-outline btn-sm"
+                  >
+                    {showTempoCustomization ? 'Done' : 'Adjust Tempo'}
+                  </button>
+                </div>
+                
+                {showTempoCustomization && (
+                  <div className="tempo-input-group">
+                    <label htmlFor="custom-tempo">Set Tempo (BPM):</label>
+                    <div className="tempo-input-container">
+                      <input
+                        id="custom-tempo"
+                        type="number"
+                        min="40"
+                        max="300"
+                        value={customTempoBpm || selectedDrill?.tempo_bpm || ''}
+                        onChange={(e) => {
+                          const value = parseInt(e.target.value);
+                          setCustomTempoBpm(isNaN(value) ? null : value);
+                        }}
+                        className="tempo-input"
+                      />
+                      <span className="tempo-unit">BPM</span>
+                    </div>
+                    <div className="tempo-presets">
+                      <button 
+                        onClick={() => setCustomTempoBpm((selectedDrill?.tempo_bpm || 120) - 20)}
+                        className="btn btn-outline btn-xs"
+                        disabled={(selectedDrill?.tempo_bpm || 120) <= 60}
+                      >
+                        -20
+                      </button>
+                      <button 
+                        onClick={() => setCustomTempoBpm((selectedDrill?.tempo_bpm || 120) - 10)}
+                        className="btn btn-outline btn-xs"
+                        disabled={(selectedDrill?.tempo_bpm || 120) <= 50}
+                      >
+                        -10
+                      </button>
+                      <button 
+                        onClick={() => setCustomTempoBpm(selectedDrill?.tempo_bpm || null)}
+                        className="btn btn-outline btn-xs"
+                      >
+                        Default
+                      </button>
+                      <button 
+                        onClick={() => setCustomTempoBpm((selectedDrill?.tempo_bpm || 120) + 10)}
+                        className="btn btn-outline btn-xs"
+                        disabled={(selectedDrill?.tempo_bpm || 120) >= 290}
+                      >
+                        +10
+                      </button>
+                      <button 
+                        onClick={() => setCustomTempoBpm((selectedDrill?.tempo_bpm || 120) + 20)}
+                        className="btn btn-outline btn-xs"
+                        disabled={(selectedDrill?.tempo_bpm || 120) >= 280}
+                      >
+                        +20
+                      </button>
+                    </div>
+                    
+                    <button 
+                      onClick={handleUpdateMetronomeTempo}
+                      disabled={!isConnected}
+                      className="btn btn-primary btn-sm"
+                    >
+                      Apply Tempo
+                    </button>
+                  </div>
+                )}
+              </div>
+              
+              <div className="metronome-controls">
+                <button 
+                  onClick={handleStartMetronome} 
+                  disabled={!isConnected || isMetronomePlaying}
+                  className="btn btn-primary"
+                >
+                  Start Metronome
+                </button>
+                <button 
+                  onClick={handleStopMetronome} 
+                  disabled={!isConnected || !isMetronomePlaying}
+                  className="btn btn-secondary"
+                >
+                  Stop Metronome
+                </button>
+                <button 
+                  onClick={handleResetMetronome} 
+                  disabled={!isConnected}
+                  className="btn btn-outline"
+                >
+                  Reset
+                </button>
+              </div>
+              
+              {/* Metronome Status */}
+              <div className="metronome-status">
+                <div className="status-item">
+                  <span className="status-label">Status:</span>
+                  <span className={`status-value ${isMetronomePlaying ? 'playing' : 'stopped'}`}>
+                    {isMetronomePlaying ? 'Playing' : 'Stopped'}
+                  </span>
+                </div>
+                <div className="status-item">
+                  <span className="status-label">Beat:</span>
+                  <span className="status-value">{currentBeat + 1}</span>
+                </div>
+                <div className="status-item">
+                  <span className="status-label">Subdivision:</span>
+                  <span className="status-value">{currentSubdivision + 1}</span>
+                </div>
+              </div>
+              
+              {/* Visual Beat Indicator */}
+              {isMetronomePlaying && (
+                <div className="beat-indicator">
+                  <div className="beat-grid">
+                    {Array.from({ length: selectedDrill?.beats_per_bar || 4 }, (_, i) => (
+                      <div 
+                        key={i} 
+                        className={`beat-dot ${i === currentBeat ? 'active' : ''}`}
+                      />
+                    ))}
+                  </div>
+                  <div className="subdivision-grid">
+                    {Array.from({ length: selectedDrill?.subdivision || 4 }, (_, i) => (
+                      <div 
+                        key={i} 
+                        className={`subdivision-dot ${i === currentSubdivision ? 'active' : ''}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {currentRolling && (

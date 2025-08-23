@@ -29,6 +29,7 @@ export interface SessionCreate {
   drill_id: string;
   input_type: 'midi' | 'audio';
   client_latency_ms?: number;
+  custom_tempo_bpm?: number; // Allow custom tempo
 }
 
 export interface Session {
@@ -39,6 +40,7 @@ export interface Session {
   client_latency_ms?: number;
   input_type: 'midi' | 'audio';
   status: 'active' | 'completed';
+  custom_tempo_bpm?: number; // Store custom tempo used
 }
 
 export interface HitEvent {
