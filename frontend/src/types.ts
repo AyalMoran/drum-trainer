@@ -5,9 +5,15 @@ export interface VelocityTargets {
 }
 
 export interface TimingConfig {
-  ok_ms: number;
-  good_ms: number;
-  bad_ms: number;
+  // Relative thresholds as percentages of subdivision timing (0.0 to 1.0)
+  perfect_pct: number;  // 10% of subdivision = perfect
+  ok_pct: number;       // 25% of subdivision = ok
+  poor_pct: number;     // 40% of subdivision = poor
+  
+  // Legacy absolute thresholds (kept for backward compatibility)
+  ok_ms?: number;
+  good_ms?: number;
+  bad_ms?: number;
 }
 
 export interface Drill {

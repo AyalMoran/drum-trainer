@@ -9,6 +9,7 @@ class DrumAnalyzer:
     def __init__(self, drill: Drill, client_offset_ms: float = 0.0):
         self.drill = drill
         self.client_offset_ms = client_offset_ms
+        self.current_tempo_bpm = drill.tempo_bpm  # Track current tempo
         
         # Precompute grid times
         self.grid_times = self._compute_grid_times()
@@ -26,14 +27,20 @@ class DrumAnalyzer:
         self.rolling_timing_var = 0.0
         self.rolling_dyn_target = 0.0
         self.rolling_dyn_var = 0.0
-        
+    
+    def update_tempo(self, new_tempo_bpm: int):
+        """Update the current tempo and recompute grid times"""
+        self.current_tempo_bpm = new_tempo_bpm
+        self.grid_times = self._compute_grid_times()
+        print(f"Analyzer tempo updated to {new_tempo_bpm} BPM, grid recomputed")
+    
     def _compute_grid_times(self) -> np.ndarray:
-        """Compute the time grid for the drill using relative timing"""
+        """Compute the time grid for the drill using current tempo"""
         # Use relative timing starting from 0ms - much simpler and more reliable
         start_time = 0.0  # Start from 0ms
         
         # Convert BPM to milliseconds per beat
-        ms_per_beat = 60000.0 / self.drill.tempo_bpm
+        ms_per_beat = 60000.0 / self.current_tempo_bpm
         
         # Time per subdivision
         ms_per_subdivision = ms_per_beat / self.drill.subdivision
@@ -75,19 +82,35 @@ class DrumAnalyzer:
         return slot_idx, delta_ms
     
     def _calculate_timing_score(self, delta_ms: float) -> float:
-        """Calculate timing score based on delta from grid"""
+        """Calculate timing score based on delta from grid using relative thresholds"""
         abs_delta = abs(delta_ms)
         
-        if abs_delta <= self.drill.timing.good_ms:
+        # Calculate subdivision timing in milliseconds based on current tempo
+        subdivision_ms = (60.0 / self.current_tempo_bpm) * 1000.0 / self.drill.subdivision
+        
+        # Calculate absolute thresholds from relative percentages
+        perfect_ms = subdivision_ms * self.drill.timing.perfect_pct
+        ok_ms = subdivision_ms * self.drill.timing.ok_pct
+        poor_ms = subdivision_ms * self.drill.timing.poor_pct
+        
+        # Fallback to legacy absolute thresholds if relative ones aren't set
+        if self.drill.timing.ok_ms is not None:
+            ok_ms = self.drill.timing.ok_ms
+        if self.drill.timing.good_ms is not None:
+            perfect_ms = self.drill.timing.good_ms
+        if self.drill.timing.bad_ms is not None:
+            poor_ms = self.drill.timing.bad_ms
+        
+        if abs_delta <= perfect_ms:
             return 1.0
-        elif abs_delta <= self.drill.timing.ok_ms:
-            # Linear interpolation between good and ok
-            ratio = (self.drill.timing.ok_ms - abs_delta) / (self.drill.timing.ok_ms - self.drill.timing.good_ms)
-            return 0.7 + 0.3 * ratio
-        elif abs_delta <= self.drill.timing.bad_ms:
-            # Linear interpolation between ok and bad
-            ratio = (self.drill.timing.bad_ms - abs_delta) / (self.drill.timing.bad_ms - self.drill.timing.ok_ms)
-            return 0.0 + 0.7 * ratio
+        elif abs_delta <= ok_ms:
+            # Linear interpolation between perfect and ok
+            ratio = (ok_ms - abs_delta) / (ok_ms - perfect_ms)
+            return 0.8 + 0.2 * ratio
+        elif abs_delta <= poor_ms:
+            # Linear interpolation between ok and poor
+            ratio = (poor_ms - abs_delta) / (poor_ms - ok_ms)
+            return 0.0 + 0.8 * ratio
         else:
             return 0.0
     

@@ -89,9 +89,9 @@ class Metronome:
         
         if session_id and session_id in analyzers_db:
             analyzer = analyzers_db[session_id]
-            # Recompute grid with new tempo
-            analyzer.grid_times = analyzer._compute_grid_times()
-            print(f"Analyzer grid updated for new tempo: {self.effective_tempo} BPM")
+            # Update analyzer with new tempo
+            analyzer.update_tempo(self.effective_tempo)
+            print(f"Analyzer updated for new tempo: {self.effective_tempo} BPM")
         
     async def _run_metronome(self, websocket: WebSocket):
         """Main metronome loop"""
@@ -180,9 +180,9 @@ def seed_default_drills():
             "tolerance": 15
         },
         timing={
-            "ok_ms": 20,
-            "good_ms": 10,
-            "bad_ms": 40
+            "perfect_pct": 0.1,  # 10% of subdivision = perfect
+            "ok_pct": 0.25,      # 25% of subdivision = ok
+            "poor_pct": 0.4      # 40% of subdivision = poor
         }
     )
     
@@ -201,9 +201,9 @@ def seed_default_drills():
             "tolerance": 20
         },
         timing={
-            "ok_ms": 25,
-            "good_ms": 15,
-            "bad_ms": 50
+            "perfect_pct": 0.1,  # 10% of subdivision = perfect
+            "ok_pct": 0.25,      # 25% of subdivision = ok
+            "poor_pct": 0.4      # 40% of subdivision = poor
         }
     )
     
@@ -222,9 +222,9 @@ def seed_default_drills():
             "tolerance": 25
         },
         timing={
-            "ok_ms": 30,
-            "good_ms": 20,
-            "bad_ms": 60
+            "perfect_pct": 0.1,  # 10% of subdivision = perfect
+            "ok_pct": 0.25,      # 25% of subdivision = ok
+            "poor_pct": 0.4      # 40% of subdivision = poor
         }
     )
     

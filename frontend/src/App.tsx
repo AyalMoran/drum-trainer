@@ -686,129 +686,147 @@ function App() {
               </div>
             )}
 
-            {hitHistory.length > 0 && (
+            {currentSession && (
               <div className="hit-history">
                 <h3>Recent Hits</h3>
                 
-                {/* Table Headers */}
-                <div className="hit-table-headers">
-                  <div className="hit-header">Position</div>
-                  <div className="hit-header">Timing</div>
-                  <div className="hit-header">Velocity</div>
-                  <div className="hit-header">Timing Score</div>
-                  <div className="hit-header">Dynamics Score</div>
-                  <div className="hit-header">Target Velocity</div>
-                  <div className="hit-header">Beat Info</div>
-                  <div className="hit-header">Quality</div>
-                </div>
-                
-                {/* Hit List */}
-                <div className="hit-list">
-                  {hitHistory.slice(-15).reverse().map((hit, index) => {
-                    // Calculate beat and subdivision info
-                    const beat = Math.floor(hit.slot_idx / (selectedDrill?.subdivision || 4)) + 1;
-                    const subdivision = (hit.slot_idx % (selectedDrill?.subdivision || 4)) + 1;
+                {hitHistory.length > 0 ? (
+                  <>
+                    {/* Table Headers */}
+                    <div className="hit-table-headers">
+                      <div className="hit-header">Position</div>
+                      <div className="hit-header">Timing</div>
+                      <div className="hit-header">Velocity</div>
+                      <div className="hit-header">Timing Score</div>
+                      <div className="hit-header">Dynamics Score</div>
+                      <div className="hit-header">Target Velocity</div>
+                      <div className="hit-header">Beat Info</div>
+                      <div className="hit-header">Quality</div>
+                    </div>
                     
-                    // Determine timing quality
-                    const timingQuality = hit.timing_score >= 0.9 ? 'Perfect' : 
-                                       hit.timing_score >= 0.7 ? 'Good' : 
-                                       hit.timing_score >= 0.5 ? 'OK' : 'Poor';
+                    {/* Hit List */}
+                    <div className="hit-list">
+                      {hitHistory.slice(-15).reverse().map((hit, index) => {
+                        // Calculate beat and subdivision info
+                        const beat = Math.floor(hit.slot_idx / (selectedDrill?.subdivision || 4)) + 1;
+                        const subdivision = (hit.slot_idx % (selectedDrill?.subdivision || 4)) + 1;
+                        
+                        // Determine timing quality
+                        const timingQuality = hit.timing_score >= 0.9 ? 'Perfect' : 
+                                           hit.timing_score >= 0.7 ? 'Good' : 
+                                           hit.timing_score >= 0.5 ? 'OK' : 'Poor';
+                        
+                        // Determine dynamics quality
+                        const dynamicsQuality = hit.dyn_score >= 0.9 ? 'Perfect' : 
+                                              hit.dyn_score >= 0.7 ? 'Good' : 
+                                              hit.dyn_score >= 0.5 ? 'OK' : 'Poor';
+                        
+                        // Overall quality
+                        const overallQuality = (hit.timing_score + hit.dyn_score) / 2;
+                        const qualityClass = overallQuality >= 0.9 ? 'perfect' : 
+                                           overallQuality >= 0.7 ? 'good' : 
+                                           overallQuality >= 0.5 ? 'ok' : 'poor';
+                        
+                        return (
+                          <div key={index} className={`hit-item ${qualityClass}`}>
+                            <div className="hit-cell position">
+                              <div className="slot-info">
+                                <span className="slot-number">Slot {hit.slot_idx}</span>
+                                <span className="beat-info">Beat {beat}.{subdivision}</span>
+                              </div>
+                            </div>
+                            
+                            <div className="hit-cell timing">
+                              <div className="timing-detail">
+                                <span className="delta-ms">{hit.delta_ms > 0 ? '+' : ''}{hit.delta_ms.toFixed(1)}ms</span>
+                                <span className="timing-quality">{timingQuality}</span>
+                              </div>
+                            </div>
+                            
+                            <div className="hit-cell velocity">
+                              <div className="velocity-detail">
+                                <span className="actual-velocity">{hit.velocity || 'N/A'}</span>
+                                {hit.velocity_target && (
+                                  <span className="target-velocity">→ {hit.velocity_target}</span>
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div className="hit-cell timing-score">
+                              <div className="score-bar">
+                                <div className="score-fill" style={{width: `${hit.timing_score * 100}%`}}></div>
+                                <span className="score-text">{(hit.timing_score * 100).toFixed(0)}%</span>
+                              </div>
+                            </div>
+                            
+                            <div className="hit-cell dynamics-score">
+                              <div className="score-bar">
+                                <div className="score-fill" style={{width: `${hit.dyn_score * 100}%`}}></div>
+                                <span className="score-text">{(hit.dyn_score * 100).toFixed(0)}%</span>
+                              </div>
+                            </div>
+                            
+                            <div className="hit-cell target-velocity">
+                              <span className="target-value">{hit.velocity_target || 'N/A'}</span>
+                            </div>
+                            
+                            <div className="hit-cell beat-info">
+                              <div className="beat-detail">
+                                <span className="beat-number">{beat}</span>
+                                <span className="subdivision-number">.{subdivision}</span>
+                              </div>
+                            </div>
+                            
+                            <div className="hit-cell quality">
+                              <span className={`quality-badge ${qualityClass}`}>
+                                {overallQuality >= 0.9 ? '⭐' : 
+                                 overallQuality >= 0.7 ? '✓' : 
+                                 overallQuality >= 0.5 ? '○' : '✗'}
+                                {overallQuality >= 0.9 ? ' Perfect' : 
+                                 overallQuality >= 0.7 ? ' Good' : 
+                                 overallQuality >= 0.5 ? ' OK' : ' Poor'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                     
-                    // Determine dynamics quality
-                    const dynamicsQuality = hit.dyn_score >= 0.9 ? 'Perfect' : 
-                                          hit.dyn_score >= 0.7 ? 'Good' : 
-                                          hit.dyn_score >= 0.5 ? 'OK' : 'Poor';
-                    
-                    // Overall quality
-                    const overallQuality = (hit.timing_score + hit.dyn_score) / 2;
-                    const qualityClass = overallQuality >= 0.9 ? 'perfect' : 
-                                       overallQuality >= 0.7 ? 'good' : 
-                                       overallQuality >= 0.5 ? 'ok' : 'poor';
-                    
-                    return (
-                      <div key={index} className={`hit-item ${qualityClass}`}>
-                        <div className="hit-cell position">
-                          <div className="slot-info">
-                            <span className="slot-number">Slot {hit.slot_idx}</span>
-                            <span className="beat-info">Beat {beat}.{subdivision}</span>
-                          </div>
-                        </div>
-                        
-                        <div className="hit-cell timing">
-                          <div className="timing-detail">
-                            <span className="delta-ms">{hit.delta_ms > 0 ? '+' : ''}{hit.delta_ms.toFixed(1)}ms</span>
-                            <span className="timing-quality">{timingQuality}</span>
-                          </div>
-                        </div>
-                        
-                        <div className="hit-cell velocity">
-                          <div className="velocity-detail">
-                            <span className="actual-velocity">{hit.velocity || 'N/A'}</span>
-                            {hit.velocity_target && (
-                              <span className="target-velocity">→ {hit.velocity_target}</span>
-                            )}
-                          </div>
-                        </div>
-                        
-                        <div className="hit-cell timing-score">
-                          <div className="score-bar">
-                            <div className="score-fill" style={{width: `${hit.timing_score * 100}%`}}></div>
-                            <span className="score-text">{(hit.timing_score * 100).toFixed(0)}%</span>
-                          </div>
-                        </div>
-                        
-                        <div className="hit-cell dynamics-score">
-                          <div className="score-bar">
-                            <div className="score-fill" style={{width: `${hit.dyn_score * 100}%`}}></div>
-                            <span className="score-text">{(hit.dyn_score * 100).toFixed(0)}%</span>
-                          </div>
-                        </div>
-                        
-                        <div className="hit-cell target-velocity">
-                          <span className="target-value">{hit.velocity_target || 'N/A'}</span>
-                        </div>
-                        
-                        <div className="hit-cell beat-info">
-                          <div className="beat-detail">
-                            <span className="beat-number">{beat}</span>
-                            <span className="subdivision-number">.{subdivision}</span>
-                          </div>
-                        </div>
-                        
-                        <div className="hit-cell quality">
-                          <span className={`quality-badge ${qualityClass}`}>
-                            {overallQuality >= 0.9 ? '⭐' : 
-                             overallQuality >= 0.7 ? '✓' : 
-                             overallQuality >= 0.5 ? '○' : '✗'}
-                            {overallQuality >= 0.9 ? ' Perfect' : 
-                             overallQuality >= 0.7 ? ' Good' : 
-                             overallQuality >= 0.5 ? ' OK' : ' Poor'}
-                          </span>
-                        </div>
+                    {/* Summary Stats */}
+                    <div className="hit-summary">
+                      <div className="summary-item">
+                        <span className="summary-label">Total Hits:</span>
+                        <span className="summary-value">{hitHistory.length}</span>
                       </div>
-                    );
-                  })}
-                </div>
-                
-                {/* Summary Stats */}
-                <div className="hit-summary">
-                  <div className="summary-item">
-                    <span className="summary-label">Total Hits:</span>
-                    <span className="summary-value">{hitHistory.length}</span>
+                      <div className="summary-item">
+                        <span className="summary-label">Avg Timing Score:</span>
+                        <span className="summary-value">
+                          {(hitHistory.reduce((sum, hit) => sum + hit.timing_score, 0) / hitHistory.length * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="summary-item">
+                        <span className="summary-label">Avg Dynamics Score:</span>
+                        <span className="summary-value">
+                          {(hitHistory.reduce((sum, hit) => sum + hit.dyn_score, 0) / hitHistory.length * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="hit-history-empty">
+                    <div className="empty-icon">🥁</div>
+                    <p>No hits recorded yet. Start the metronome and hit some drums!</p>
+                    <div className="empty-tips">
+                      <h4>How to get started:</h4>
+                      <ol>
+                        <li>Click "Start Metronome" to begin</li>
+                        <li>Wait for the countdown (4, 3, 2, 1)</li>
+                        <li>Hit the drums in time with the beat</li>
+                        <li>Watch your performance feedback appear here!</li>
+                      </ol>
+                    </div>
                   </div>
-                  <div className="summary-item">
-                    <span className="summary-label">Avg Timing Score:</span>
-                    <span className="summary-value">
-                      {(hitHistory.reduce((sum, hit) => sum + hit.timing_score, 0) / hitHistory.length * 100).toFixed(1)}%
-                    </span>
-                  </div>
-                  <div className="summary-item">
-                    <span className="summary-label">Avg Dynamics Score:</span>
-                    <span className="summary-value">
-                      {(hitHistory.reduce((sum, hit) => sum + hit.dyn_score, 0) / hitHistory.length * 100).toFixed(1)}%
-                    </span>
-                  </div>
-                </div>
+                )}
               </div>
             )}
           </div>

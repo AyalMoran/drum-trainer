@@ -9,9 +9,15 @@ class VelocityTargets(BaseModel):
     tolerance: int = Field(..., ge=0, le=127)
 
 class TimingConfig(BaseModel):
-    ok_ms: int = Field(..., ge=0)
-    good_ms: int = Field(..., ge=0)
-    bad_ms: int = Field(..., ge=0)
+    # Relative thresholds as percentages of subdivision timing (0.0 to 1.0)
+    perfect_pct: float = Field(0.1, ge=0.0, le=1.0)  # 10% of subdivision = perfect
+    ok_pct: float = Field(0.25, ge=0.0, le=1.0)      # 25% of subdivision = ok
+    poor_pct: float = Field(0.4, ge=0.0, le=1.0)     # 40% of subdivision = poor
+    
+    # Legacy absolute thresholds (kept for backward compatibility)
+    ok_ms: Optional[int] = Field(None, ge=0)
+    good_ms: Optional[int] = Field(None, ge=0)
+    bad_ms: Optional[int] = Field(None, ge=0)
 
 class Drill(BaseModel):
     id: str
