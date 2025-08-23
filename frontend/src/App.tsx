@@ -29,6 +29,20 @@ function App() {
   // Refs to prevent duplicate effect runs
   const drillsFetchedRef = useRef(false);
   const midiSetupRef = useRef(false);
+  
+  // Keyboard simulation for MIDI drum strokes
+  const keyboardMidiMap = useRef(new Map([
+    ['KeyA', { note: 36, name: 'Bass Drum' }],      // A key = Bass Drum
+    ['KeyS', { note: 38, name: 'Snare Drum' }],     // S key = Snare Drum
+    ['KeyD', { note: 42, name: 'Closed Hi-Hat' }],  // D key = Hi-Hat
+    ['KeyF', { note: 46, name: 'Open Hi-Hat' }],    // F key = Open Hi-Hat
+    ['KeyG', { note: 49, name: 'Crash Cymbal' }],   // G key = Crash
+    ['KeyH', { note: 51, name: 'Ride Cymbal' }],    // H key = Ride
+    ['KeyJ', { note: 45, name: 'Tom 1' }],          // J key = Tom 1
+    ['KeyK', { note: 47, name: 'Tom 2' }],          // K key = Tom 2
+    ['KeyL', { note: 48, name: 'Tom 3' }],          // L key = Tom 3
+    ['Space', { note: 36, name: 'Bass Drum' }],     // Space = Bass Drum (alternative)
+  ]));
 
   // Load drills on component mount - only run once
   useEffect(() => {
@@ -79,7 +93,7 @@ function App() {
                   type: 'midi' as const,
                   note: event.data[1],
                   velocity: event.data[2],
-                };
+              };
                 
                 // Send to WebSocket if connected
                 if (isConnected && currentSession) {
@@ -101,6 +115,21 @@ function App() {
     setupMIDI();
   }, []); // Empty dependency array - only run once
 
+  // Setup keyboard event listeners for MIDI simulation
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      handleKeyboardMidi(event);
+    };
+
+    // Add event listener
+    document.addEventListener('keydown', handleKeyDown);
+    
+    // Cleanup function
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [currentSession, isConnected]); // Re-run when session status changes
+
   const handleStartSession = async (inputType: 'midi' | 'audio') => {
     if (!selectedDrill) return;
     
@@ -119,6 +148,33 @@ function App() {
 
   const handleStopSession = () => {
     clearSession();
+  };
+
+  // Handle keyboard events to simulate MIDI drum strokes
+  const handleKeyboardMidi = (event: KeyboardEvent) => {
+    // Only handle if we have an active session
+    if (!currentSession || !isConnected) return;
+    
+    const keyInfo = keyboardMidiMap.current.get(event.code);
+    if (!keyInfo) return;
+    
+    // Prevent default behavior for drum keys
+    event.preventDefault();
+    
+    // Simulate MIDI note-on event
+    const hitEvent = {
+      t: performance.now(),
+      type: 'midi' as const,
+      note: keyInfo.note,
+      velocity: 80, // Medium velocity for keyboard hits
+    };
+    
+    // Send to WebSocket if connected
+    const ws = useDrumTrainerStore.getState().ws;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(hitEvent));
+      console.log(`🎵 Keyboard MIDI: ${keyInfo.name} (Note ${keyInfo.note})`);
+    }
   };
 
   return (
@@ -203,6 +259,30 @@ function App() {
               <div className="feature-card">
                 <h3>📊 Performance Tracking</h3>
                 <p>Monitor your progress with detailed metrics</p>
+              </div>
+              <div className="feature-card">
+                <h3>⌨️ Keyboard Controls</h3>
+                <p>Use keyboard to simulate drum hits during practice</p>
+                <div className="keyboard-controls">
+                  <div className="key-row">
+                    <span className="key">A</span> Bass Drum
+                    <span className="key">S</span> Snare
+                    <span className="key">D</span> Hi-Hat
+                  </div>
+                  <div className="key-row">
+                    <span className="key">F</span> Open Hi-Hat
+                    <span className="key">G</span> Crash
+                    <span className="key">H</span> Ride
+                  </div>
+                  <div className="key-row">
+                    <span className="key">J</span> Tom 1
+                    <span className="key">K</span> Tom 2
+                    <span className="key">L</span> Tom 3
+                  </div>
+                  <div className="key-row">
+                    <span className="key">Space</span> Bass Drum
+                  </div>
+                </div>
               </div>
             </div>
           </div>

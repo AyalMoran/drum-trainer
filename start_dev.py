@@ -119,7 +119,7 @@ def install_backend_deps():
 def start_backend():
     """Start the backend server"""
     print("Starting backend server...")
-    try:
+    try: 
         # Check if we have a virtual environment and use it
         venv_path = Path("venv")
         python_executable = sys.executable

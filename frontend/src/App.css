@@ -210,6 +210,42 @@ body {
   line-height: 1.5;
 }
 
+/* Keyboard controls styling */
+.keyboard-controls {
+  margin-top: 1rem;
+  text-align: center;
+}
+
+.key-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  margin: 0.5rem 0;
+  flex-wrap: wrap;
+}
+
+.key {
+  background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  padding: 0.25rem 0.5rem;
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  color: #ffffff;
+  font-size: 0.8rem;
+  min-width: 2rem;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+}
+
+.key:hover {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+}
+
 /* Setup section */
 .setup-section h2 {
   margin-bottom: 1.5rem;

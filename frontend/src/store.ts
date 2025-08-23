@@ -26,6 +26,12 @@ interface DrumTrainerState {
   midiAccess: WebMidi.MIDIAccess | null;
   midiInputs: WebMidi.MIDIInput[];
   
+  // Metronome
+  isMetronomePlaying: boolean;
+  currentBeat: number;
+  currentSubdivision: number;
+  metronomeInterval: number | null;
+  
   // Actions
   setDrills: (drills: Drill[]) => void;
   selectDrill: (drill: Drill) => void;
@@ -36,6 +42,9 @@ interface DrumTrainerState {
   setMidiAccess: (access: WebMidi.MIDIAccess) => void;
   setMidiInputs: (inputs: WebMidi.MIDIInput[]) => void;
   clearSession: () => void;
+  startMetronome: () => void;
+  stopMetronome: () => void;
+  resetMetronome: () => void;
 }
 
 export const useDrumTrainerStore = create<DrumTrainerState>((set, get) => ({
@@ -50,6 +59,12 @@ export const useDrumTrainerStore = create<DrumTrainerState>((set, get) => ({
   currentRolling: null,
   midiAccess: null,
   midiInputs: [],
+  
+  // Metronome
+  isMetronomePlaying: false,
+  currentBeat: 0,
+  currentSubdivision: 0,
+  metronomeInterval: null,
   
   // Actions
   setDrills: (drills) => set({ drills }),
