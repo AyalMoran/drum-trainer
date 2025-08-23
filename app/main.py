@@ -187,9 +187,9 @@ def seed_default_drills():
     )
     
     singles = Drill(
-        id="singles_140",
+        id="singles_60",
         name="Single Stroke Roll",
-        tempo_bpm=140,
+        tempo_bpm=60,
         subdivision=4,
         beats_per_bar=4,
         bars=4,
@@ -306,6 +306,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     session = sessions_db[session_id]
     analyzer = analyzers_db[session_id]
     drill = drills_db[session.drill_id]
+    
+    # Start the analyzer session for proper timing calculations
+    analyzer.start_session()
     
     # Create metronome for this session
     metronome = Metronome(drill, session.custom_tempo_bpm)

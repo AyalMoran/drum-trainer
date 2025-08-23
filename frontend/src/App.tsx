@@ -711,21 +711,26 @@ function App() {
                         const beat = Math.floor(hit.slot_idx / (selectedDrill?.subdivision || 4)) + 1;
                         const subdivision = (hit.slot_idx % (selectedDrill?.subdivision || 4)) + 1;
                         
-                        // Determine timing quality
-                        const timingQuality = hit.timing_score >= 0.9 ? 'Perfect' : 
-                                           hit.timing_score >= 0.7 ? 'Good' : 
-                                           hit.timing_score >= 0.5 ? 'OK' : 'Poor';
+                        // Determine timing quality based on new thresholds
+                        const timingQuality = hit.timing_score >= 0.9 ? 'PERFECT' : 
+                                           hit.timing_score >= 0.7 ? 'OK' : 
+                                           hit.timing_score >= 0.5 ? 'OK' : 'POOR';
                         
                         // Determine dynamics quality
                         const dynamicsQuality = hit.dyn_score >= 0.9 ? 'Perfect' : 
                                               hit.dyn_score >= 0.7 ? 'Good' : 
                                               hit.dyn_score >= 0.5 ? 'OK' : 'Poor';
                         
-                        // Overall quality
+                        // Overall quality (keeping for other uses but not for Quality column)
                         const overallQuality = (hit.timing_score + hit.dyn_score) / 2;
                         const qualityClass = overallQuality >= 0.9 ? 'perfect' : 
                                            overallQuality >= 0.7 ? 'good' : 
                                            overallQuality >= 0.5 ? 'ok' : 'poor';
+                        
+                        // Timing quality class for styling
+                        const timingQualityClass = hit.timing_score >= 0.9 ? 'perfect' : 
+                                                hit.timing_score >= 0.7 ? 'ok' : 
+                                                hit.timing_score >= 0.5 ? 'ok' : 'poor';
                         
                         return (
                           <div key={index} className={`hit-item ${qualityClass}`}>
@@ -778,13 +783,8 @@ function App() {
                             </div>
                             
                             <div className="hit-cell quality">
-                              <span className={`quality-badge ${qualityClass}`}>
-                                {overallQuality >= 0.9 ? '⭐' : 
-                                 overallQuality >= 0.7 ? '✓' : 
-                                 overallQuality >= 0.5 ? '○' : '✗'}
-                                {overallQuality >= 0.9 ? ' Perfect' : 
-                                 overallQuality >= 0.7 ? ' Good' : 
-                                 overallQuality >= 0.5 ? ' OK' : ' Poor'}
+                              <span className={`quality-badge ${timingQualityClass}`}>
+                                {timingQuality}
                               </span>
                             </div>
                           </div>

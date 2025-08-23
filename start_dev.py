@@ -46,9 +46,9 @@ def check_dependencies():
     
     for npm_cmd in npm_commands:
         try:
-            # Use shell=True on Windows for better PATH resolution
-            if os.name == 'nt':  # Windows
-                result = subprocess.run(f"{npm_cmd} --version", shell=True, check=True, capture_output=True, text=True)
+            #  Use shell  = True on Windows for better PATH resolution
+            if os.name   == 'nt':  # Windows
+               result     = subprocess.run(f"{npm_cmd} --version", shell=True, check=True, capture_output=True, text=True)
             else:
                 result = subprocess.run([npm_cmd, "--version"], check=True, capture_output=True, text=True)
             

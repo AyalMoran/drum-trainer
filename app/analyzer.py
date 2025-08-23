@@ -7,9 +7,10 @@ class DrumAnalyzer:
     """Core analyzer for drum timing and dynamics"""
     
     def __init__(self, drill: Drill, client_offset_ms: float = 0.0):
-        self.drill = drill
-        self.client_offset_ms = client_offset_ms
-        self.current_tempo_bpm = drill.tempo_bpm  # Track current tempo
+        self.drill              = drill
+        self.client_offset_ms   = client_offset_ms
+        self.current_tempo_bpm  = drill.tempo_bpm  # Track current tempo
+        self.session_start_time = None  # Track when session started
         
         # Precompute grid times
         self.grid_times = self._compute_grid_times()
@@ -27,6 +28,11 @@ class DrumAnalyzer:
         self.rolling_timing_var = 0.0
         self.rolling_dyn_target = 0.0
         self.rolling_dyn_var = 0.0
+    
+    def start_session(self):
+        """Mark the start of a session for timing calculations"""
+        self.session_start_time = time.time()
+        print(f"Session started at: {self.session_start_time}")
     
     def update_tempo(self, new_tempo_bpm: int):
         """Update the current tempo and recompute grid times"""
@@ -58,16 +64,22 @@ class DrumAnalyzer:
     
     def _find_nearest_slot(self, hit_time_ms: float) -> Tuple[int, float]:
         """Find the nearest grid slot and return (slot_index, delta_ms)"""
-        # For relative timing, we need to convert the absolute client time to relative time
-        # Since the grid starts at 0ms, we need to find the relative position
+        if self.session_start_time is None:
+            # If session hasn't started, start it now
+            self.start_session()
         
-        # Convert client time to relative time (modulo the total grid duration)
+        # Convert client time (performance.now() in ms) to relative time from session start
+        # performance.now() gives time since page load, we need time since session start
+        session_elapsed_ms = (time.time() - self.session_start_time) * 1000.0
+        
+        # Calculate relative position within the grid cycle
         total_grid_duration = self.grid_times[-1]  # Total duration in ms
-        relative_time = hit_time_ms % total_grid_duration
+        relative_time = session_elapsed_ms % total_grid_duration
         
         # Debug timing information
         print(f"Hit timing debug:")
         print(f"  Client time: {hit_time_ms:.2f}ms")
+        print(f"  Session elapsed: {session_elapsed_ms:.2f}ms")
         print(f"  Total grid duration: {total_grid_duration:.2f}ms")
         print(f"  Relative time: {relative_time:.2f}ms")
         print(f"  Grid start: {self.grid_times[0]:.2f}ms")
